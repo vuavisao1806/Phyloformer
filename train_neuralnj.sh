@@ -3,14 +3,16 @@
 #
 # Parameters follow Phyloformer paper (main text Online Methods + supplementary Table 1, PF_Base):
 #
-#   Three parameters DIFFER from train_distributed.py defaults — must be explicit:
+#   Four parameters DIFFER from train_distributed.py defaults — must be explicit:
 #     --learning-rate   1e-3   (code default: 1e-4   | paper: "maximum learning rate of 10^-3")
 #     --warmup-steps    3000   (code default: 5000   | paper: "3,000 linear warmup steps")
 #     --check-val-every 3000   (code default: 10000  | paper: "five successive 3,000 step intervals")
+#     --batch-size      1      (code default: 4      | NeuralNJ mixes sequence lengths → batch_size=1
+#                               avoids collation errors; paper batch_size=4 assumed fixed-length data)
 #
 #   All other hyperparameters already match paper values in train_distributed.py:
 #     nb_epochs=100   → ~161,000 total schedule steps; early stopping terminates sooner
-#     batch_size=4    | nb_blocks=6  | embed_dim=64 | nb_heads=4 | dropout=0.0
+#     nb_blocks=6  | embed_dim=64 | nb_heads=4 | dropout=0.0
 #     loss=MAE (L1Loss) | no_improvement_stop=5 | hard_loss_ceiling=3.0
 #
 # Data splits:
@@ -58,6 +60,7 @@ ARGS=(
     --learning-rate    1e-3
     --warmup-steps     3000
     --check-val-every  3000
+    --batch-size       1
     --output-dir       "${OUTPUT_DIR}"
     --run-name         "${RUN_NAME}"
 )

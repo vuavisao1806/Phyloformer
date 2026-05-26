@@ -132,8 +132,8 @@ class Phyloformer(nn.Module):
         self.n_seqs = n_seqs
         self.seq_len = seq_len
 
-        # Initialize seq2pair matrix
-        self.seq2pair = adaptable_seq2pair(20, SEQ2PAIR)
+        # Initialize seq2pair matrix as a buffer so it moves to GPU with the model
+        self.register_buffer("seq2pair", adaptable_seq2pair(20, SEQ2PAIR))
 
         self.embedding_block = nn.Sequential(
             nn.Conv2d(
