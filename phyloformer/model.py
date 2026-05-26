@@ -137,7 +137,7 @@ class Phyloformer(nn.Module):
 
         self.embedding_block = nn.Sequential(
             nn.Conv2d(
-                in_channels=22, out_channels=self.embed_dim, kernel_size=1, stride=1
+                in_channels=5, out_channels=self.embed_dim, kernel_size=1, stride=1
             ),
             nn.ReLU(),
         )

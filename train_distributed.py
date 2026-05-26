@@ -45,7 +45,12 @@ def MRE(
 
 
 def listdir_paths(root):
-    return [os.path.join(root, file) for file in os.listdir(root)]
+    """Return absolute paths of all files under root (recursive)."""
+    paths = []
+    for dirpath, _, filenames in os.walk(root):
+        for fname in filenames:
+            paths.append(os.path.join(dirpath, fname))
+    return paths
 
 
 # Removes all extensions (useful for still matching on predicted trees)
@@ -59,11 +64,14 @@ def make_pairs(treefiles, alnfiles, regex):
     alndict = {
         stem(alnfile): alnfile
         for alnfile in alnfiles
-        if alnfile.endswith(".fa") or alnfile.endswith(".fasta")
+        if alnfile.endswith(".fa") or alnfile.endswith(".fasta") or alnfile.endswith(".phy")
     }
     pairs = []
     for treefile in treefiles:
-        if not (treefile.endswith(".nwk") or treefile.endswith(".newick")):
+        is_nwk = treefile.endswith(".nwk") or treefile.endswith(".newick")
+        # Accept .tre but exclude _raw.tre (NeuralNJ raw simulation trees)
+        is_tre = treefile.endswith(".tre") and not treefile.endswith("_raw.tre")
+        if not (is_nwk or is_tre):
             continue
         if regex is not None and not regex.search(treefile):
             continue
