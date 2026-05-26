@@ -8,9 +8,10 @@ numpy==1.24.4
 scipy==1.10.1
 
 # Necessary for training
-lightning==2.0.6
-wandb==0.15.8
+lightning>=2.2.0,<3     # 2.0.x/2.1.x have a broken lightning-cloud dependency with newer pip resolvers
+wandb>=0.16.0             # 0.15.x pulls lightning-cloud which constrains lightning to 2.0.x
 transformers>=4.30.0    # required by train_distributed.py (get_linear_schedule_with_warmup)
+scikit-bio>=0.5.6       # required by setup.py install_requires
 
 # Paper figures
 pandas>=1.5,<3

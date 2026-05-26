@@ -43,24 +43,35 @@ conda activate "${ENV_NAME}"
 echo "Activated environment: ${ENV_NAME}"
 
 # ── 3. Detect CUDA version and select PyTorch wheel ──────────────────────────
-TORCH_VERSION="2.0.1"
-
 if command -v nvidia-smi &>/dev/null; then
-    # Extract CUDA version, e.g. "12.1" → major "12"
-    CUDA_FULL=$(nvidia-smi | awk '/CUDA Version/ {print $NF}')
-    CUDA_MAJOR=$(echo "${CUDA_FULL}" | cut -d. -f1)
-    CUDA_MINOR=$(echo "${CUDA_FULL}" | cut -d. -f2)
-    echo "Detected GPU with CUDA ${CUDA_FULL}"
+    # nvidia-smi output: "| ... CUDA Version: 12.8   |"
+    # grep -oP extracts only the version number, ignoring the table border "|"
+    CUDA_FULL=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+' | head -1)
 
-    # PyTorch 2.0.1 ships wheels for cu117 and cu118.
-    # CUDA 12.x is forward-compatible with cu118 wheels in most cases.
-    if [[ "${CUDA_MAJOR}" -ge 12 ]] || { [[ "${CUDA_MAJOR}" -eq 11 ]] && [[ "${CUDA_MINOR}" -ge 8 ]]; }; then
-        TORCH_EXTRA="cu118"
-    elif [[ "${CUDA_MAJOR}" -eq 11 ]]; then
-        TORCH_EXTRA="cu117"
-    else
-        echo "WARN: CUDA ${CUDA_FULL} is older than 11.7 — falling back to CPU-only PyTorch." >&2
+    if [[ -z "${CUDA_FULL}" ]]; then
+        echo "WARN: Found nvidia-smi but could not parse CUDA version — falling back to CPU-only PyTorch." >&2
         TORCH_EXTRA="cpu"
+    else
+        CUDA_MAJOR=$(echo "${CUDA_FULL}" | cut -d. -f1)
+        CUDA_MINOR=$(echo "${CUDA_FULL}" | cut -d. -f2)
+        echo "Detected GPU with CUDA ${CUDA_FULL}"
+
+        # Map CUDA version to the closest PyTorch wheel index.
+        # PyTorch publishes separate wheel sets for each CUDA release.
+        if   [[ "${CUDA_MAJOR}" -eq 12 ]] && [[ "${CUDA_MINOR}" -ge 8 ]]; then
+            TORCH_EXTRA="cu128"   # CUDA 12.8+ → torch 2.7+
+        elif [[ "${CUDA_MAJOR}" -eq 12 ]] && [[ "${CUDA_MINOR}" -ge 4 ]]; then
+            TORCH_EXTRA="cu124"   # CUDA 12.4–12.7 → torch 2.4+
+        elif [[ "${CUDA_MAJOR}" -eq 12 ]]; then
+            TORCH_EXTRA="cu121"   # CUDA 12.0–12.3 → torch 2.1+
+        elif [[ "${CUDA_MAJOR}" -eq 11 ]] && [[ "${CUDA_MINOR}" -ge 8 ]]; then
+            TORCH_EXTRA="cu118"   # CUDA 11.8–11.x → torch 2.0+
+        elif [[ "${CUDA_MAJOR}" -eq 11 ]] && [[ "${CUDA_MINOR}" -ge 7 ]]; then
+            TORCH_EXTRA="cu117"   # CUDA 11.7
+        else
+            echo "WARN: CUDA ${CUDA_FULL} is older than 11.7 — falling back to CPU-only PyTorch." >&2
+            TORCH_EXTRA="cpu"
+        fi
     fi
 else
     echo "No NVIDIA GPU detected — installing CPU-only PyTorch."
@@ -68,12 +79,26 @@ else
 fi
 
 TORCH_INDEX="https://download.pytorch.org/whl/${TORCH_EXTRA}"
-echo "Installing torch==${TORCH_VERSION}+${TORCH_EXTRA} ..."
-pip install "torch==${TORCH_VERSION}" --index-url "${TORCH_INDEX}"
+echo "Installing latest stable torch for ${TORCH_EXTRA} ..."
+# No version pin: installs the newest torch compatible with the detected CUDA.
+# Pinning to 2.0.1 is intentionally avoided because newer CUDA versions
+# (12.4, 12.8) have no 2.0.1 wheels; torch 2.x APIs used here are stable.
+pip install torch --index-url "${TORCH_INDEX}"
 
 # ── 4. Install remaining dependencies ────────────────────────────────────────
+# Pin lightning first so pip's resolver doesn't downgrade it via transitive
+# dependencies (e.g. wandb<=0.15.x → lightning-cloud → lightning==2.0.x).
+echo "Installing lightning>=2.2.0 ..."
+pip install 'lightning>=2.2.0,<3'
+
 echo "Installing Python dependencies from requirements.txt ..."
-pip install -r "${SCRIPT_DIR}/requirements.txt"
+pip install --upgrade -r "${SCRIPT_DIR}/requirements.txt"
+
+# Force the correct lightning version last. wandb<=0.15.x pulls lightning-cloud
+# which downgrades lightning to 2.0.x even if requirements.txt says >=2.2.0.
+# Re-installing after all other packages wins the version contest.
+echo "Ensuring lightning>=2.2.0 (overrides any transitive downgrade) ..."
+pip install 'lightning>=2.2.0,<3' --upgrade
 
 # ── 5. Install the phyloformer package in editable mode ──────────────────────
 echo "Installing phyloformer package (editable) ..."
