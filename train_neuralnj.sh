@@ -21,7 +21,10 @@
 #   test/       → NEVER touched during training; reserved for final benchmark
 #
 # Usage:
-#   bash train_neuralnj.sh [output_dir] [run_name] [base_model.ckpt]
+#   bash train_neuralnj.sh [output_dir] [run_name] [resume_checkpoint.ckpt]
+#
+# Default resumes from:
+#   runs/neuralnj/checkpoints_LR_0.001_O_Adam_L_L1_E_100_BS_1_NB_6_NH_4_HD_64_D_0.0_W3000/last-v1.ckpt
 
 set -euo pipefail
 
@@ -31,13 +34,16 @@ TRAIN_DIR="${SCRIPT_DIR}/data_from_NeuralNJ/train"
 VAL_DIR="${SCRIPT_DIR}/data_from_NeuralNJ/validation"
 OUTPUT_DIR="${1:-${SCRIPT_DIR}/runs/neuralnj}"
 RUN_NAME="${2:-phyloformer_neuralnj}"
-BASE_MODEL="${3:-}"
+RESUME_CKPT="${3:-${SCRIPT_DIR}/runs/neuralnj/checkpoints_LR_0.001_O_Adam_L_L1_E_100_BS_1_NB_6_NH_4_HD_64_D_0.0_W3000/epoch=13-step=380000-val_loss=0.4170-train_loss=0.3331.ckpt}"
 
 if [ ! -d "${TRAIN_DIR}" ]; then
     echo "ERROR: training directory not found: ${TRAIN_DIR}" >&2; exit 1
 fi
 if [ ! -d "${VAL_DIR}" ]; then
     echo "ERROR: validation directory not found: ${VAL_DIR}" >&2; exit 1
+fi
+if [ ! -f "${RESUME_CKPT}" ]; then
+    echo "ERROR: checkpoint not found: ${RESUME_CKPT}" >&2; exit 1
 fi
 
 mkdir -p "${OUTPUT_DIR}"
@@ -48,6 +54,7 @@ echo "  Train      : ${TRAIN_DIR}"
 echo "  Validation : ${VAL_DIR}"
 echo "  Test       : (reserved — not used during training)"
 echo "  Output     : ${OUTPUT_DIR}"
+echo "  Resume     : ${RESUME_CKPT}"
 echo "  lr=1e-3 | warmup=3000 | check_val_every=3000 (Phyloformer paper)"
 echo "  All other hyperparameters: train_distributed.py defaults"
 echo "============================================================"
@@ -59,14 +66,11 @@ ARGS=(
     --val-alignments   "${VAL_DIR}"
     --learning-rate    1e-3
     --warmup-steps     3000
-    --check-val-every  3000
+    --check-val-every  10000
     --batch-size       1
     --output-dir       "${OUTPUT_DIR}"
     --run-name         "${RUN_NAME}"
+    --load-checkpoint  "${RESUME_CKPT}"
 )
-
-if [ -n "${BASE_MODEL}" ]; then
-    ARGS+=(--base-model "${BASE_MODEL}")
-fi
 
 python "${SCRIPT_DIR}/train_distributed.py" "${ARGS[@]}"

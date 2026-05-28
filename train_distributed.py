@@ -186,6 +186,11 @@ class LightningAxialTransformer(lightning.LightningModule):
 
         return dict(loss=loss, **d)
 
+    def on_load_checkpoint(self, checkpoint):
+        # seq2pair was previously a persistent buffer; it is now non-persistent.
+        # Drop the stale key so old checkpoints load cleanly.
+        checkpoint["state_dict"].pop("model.seq2pair", None)
+
 
 class PhyloDataModule(lightning.LightningDataModule):
     def __init__(self, train_pairs, val_pairs, batch_size):
@@ -456,14 +461,14 @@ if __name__ == "__main__":
 
     # Load weights from pre-trained PF instance
     if args.base_model is not None:
-        ckpt = torch.load(args.base_model, map_location="cpu")
+        ckpt = torch.load(args.base_model, map_location="cpu", weights_only=False)
         model = LightningAxialTransformer(**ckpt["hyper_parameters"])
         model.load_state_dict(ckpt["state_dict"])
         del ckpt  # Free space used by the checkpoint
 
     # Load hyper-parameters if starting up from a checkpoint
     if args.load_checkpoint is not None:
-        ckpt = torch.load(args.load_checkpoint, map_location="cpu")
+        ckpt = torch.load(args.load_checkpoint, map_location="cpu", weights_only=False)
         model = LightningAxialTransformer(**ckpt["hyper_parameters"])
 
         # This is a little hacky...
@@ -559,4 +564,4 @@ if __name__ == "__main__":
     pprint(train_args)
 
     # Train the model
-    trainer.fit(**train_args, datamodule=datamodule)
+    trainer.fit(**train_args, datamodule=datamodule, weights_only=False)
